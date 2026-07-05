@@ -3,6 +3,17 @@ let focusableElements = [];
 let currentFocusIndex = -1;
 let inputCooldown = false;
 
+const style = document.createElement('style');
+style.textContent = `
+    :focus {
+        outline: 4px solid #007bff !important;
+        outline-offset: 4px !important;
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        transition: outline 0.1s ease-in-out !important;
+    }
+`;
+document.head.appendChild(style);
+
 function updateFocusableElements() {
     const allElements = document.querySelectorAll('button, a, input, select, textarea, [tabindex="0"]');
     
