@@ -3,38 +3,55 @@ let focusableElements = [];
 let currentFocusIndex = -1;
 let inputCooldown = false;
 
-const style = document.createElement('style');
-style.textContent = `
-    :focus {
-        outline: 4px solid #007bff !important;
-        outline-offset: 4px !important;
-        background-color: rgba(0, 123, 255, 0.1) !important;
-        transition: outline 0.1s ease-in-out !important;
+function injectStyles() {
+    if (document.getElementById('controller-navigation-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'controller-navigation-styles';
+    style.textContent = `
+        :focus {
+            outline: 4px solid #007bff !important;
+            outline-offset: 4px !important;
+            background-color: rgba(0, 123, 255, 0.1) !important;
+            transition: outline 0.1s ease-in-out !important;
+        }
+    `;
+    if (document.head) {
+        document.head.appendChild(style);
+    } else {
+        document.documentElement.appendChild(style);
     }
-`;
-document.head.appendChild(style);
-
-function updateFocusableElements() {
-    const allElements = document.querySelectorAll('button, a, input, select, textarea, [tabindex="0"]');
-    
-    focusableElements = Array.from(allElements).filter(el => {
-        const isVisible = el.offsetParent !== null;
-        const style = window.getComputedStyle(el);
-        const isNotHiddenStyle = style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-        
-        return isVisible && isNotHiddenStyle;
-    });
 }
 
-window.addEventListener("gamepadconnected", (e) => {
-    connectedGamepadIndex = e.gamepad.index;
-    updateFocusableElements();
-    requestAnimationFrame(updateControllerStatus);
-});
+function updateFocusableElements() {
+    const allElements = document.getElementsByTagName('*');
+    focusableElements = [];
 
-window.addEventListener("gamepaddisconnected", (e) => {
-    connectedGamepadIndex = null;
-});
+    for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i];
+
+        if (el.offsetParent === null) {
+            continue;
+        }
+
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+            continue;
+        }
+
+        const tagName = el.tagName.toLowerCase();
+        const hasOnClickAttr = el.hasAttribute('onclick') || el.onclick !== null;
+        const hasTabindex = el.hasAttribute('tabindex');
+        const isStandardInteractive = ['button', 'a', 'input', 'select', 'textarea'].includes(tagName);
+        const hasPointerCursor = style.cursor === 'pointer';
+
+        if (isStandardInteractive || hasOnClickAttr || hasTabindex || hasPointerCursor) {
+            if (!hasTabindex && !isStandardInteractive) {
+                el.setAttribute('tabindex', '0');
+            }
+            focusableElements.push(el);
+        }
+    }
+}
 
 function updateControllerStatus() {
     if (connectedGamepadIndex === null) return;
@@ -70,7 +87,7 @@ function updateControllerStatus() {
 function navigateMenu(direction) {
     if (focusableElements.length === 0) return;
 
-    if (currentFocusIndex !== -1) {
+    if (currentFocusIndex !== -1 && focusableElements[currentFocusIndex]) {
         focusableElements[currentFocusIndex].blur();
     }
 
@@ -78,7 +95,9 @@ function navigateMenu(direction) {
     if (currentFocusIndex >= focusableElements.length) currentFocusIndex = 0;
     if (currentFocusIndex < 0) currentFocusIndex = focusableElements.length - 1;
 
-    focusableElements[currentFocusIndex].focus();
+    if (focusableElements[currentFocusIndex]) {
+        focusableElements[currentFocusIndex].focus();
+    }
 }
 
 function triggerCooldown() {
@@ -88,5 +107,26 @@ function triggerCooldown() {
     }, 200);
 }
 
-const observer = new MutationObserver(updateFocusableElements);
-observer.observe(document.body, { childList: true, subtree: true });
+function init() {
+    injectStyles();
+    updateFocusableElements();
+    
+    window.addEventListener("gamepadconnected", (e) => {
+        connectedGamepadIndex = e.gamepad.index;
+        updateFocusableElements();
+        requestAnimationFrame(updateControllerStatus);
+    });
+
+    window.addEventListener("gamepaddisconnected", (e) => {
+        connectedGamepadIndex = null;
+    });
+
+    const observer = new MutationObserver(updateFocusableElements);
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
